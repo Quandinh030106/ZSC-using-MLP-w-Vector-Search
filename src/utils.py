@@ -50,3 +50,14 @@ def non_max_suppression(boxes, scores, iou_threshold=0.3):
         order = order[inds + 1]
 
     return keep
+
+def sliding_window(image, window_size, step_size):
+    """Hàm quét cửa sổ trượt"""
+    h, w = image.shape[:2]
+    win_w, win_h = window_size
+    patches, boxes = [], []
+    for y in range(0, h - win_h + 1, step_size):
+        for x in range(0, w - win_w + 1, step_size):
+            patches.append(image[y:y+win_h, x:x+win_w])
+            boxes.append([x, y, x + win_w, y + win_h])
+    return patches, boxes
