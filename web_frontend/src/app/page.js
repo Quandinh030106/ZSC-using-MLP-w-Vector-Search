@@ -157,7 +157,7 @@ export default function ZeroShotCountingApp() {
             <h3 className="font-semibold text-slate-100">Kiến Trúc AI</h3>
           </div>
           <ul className="text-sm text-slate-400 space-y-2 mb-3">
-            <li>Feature: HOG+HSV (1812-dim)</li>
+            <li>Feature: HOG+HSV+LBP (2068-dim)</li>
             <li>Model: Siamese MLP (11M params)</li>
             <li>Search: FAISS (IndexFlatIP)</li>
           </ul>
