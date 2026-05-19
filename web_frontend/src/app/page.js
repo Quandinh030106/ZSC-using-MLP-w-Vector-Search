@@ -197,7 +197,14 @@ export default function ZeroShotCountingApp() {
 
             {/* KHU VỰC CHỨA ẢNH & BOXES */}
             <div className="relative border border-slate-700 rounded-xl bg-black/50 p-2 max-w-full overflow-hidden flex justify-center shadow-2xl">
-              <ReactCrop crop={crop} onChange={c => setCrop(c)} disabled={resultData != null}>
+              <ReactCrop 
+                crop={crop} 
+                onChange={c => {
+                  setCrop(c);
+                  // Nếu người dùng vẽ lại ô vuông khác, lập tức xóa các kết quả cũ đi
+                  if (resultData) setResultData(null); 
+                }} 
+              >
                 <div className="relative inline-block">
                   <img ref={imageRef} src={imageSrc} alt="Upload" className="max-h-[60vh] w-auto object-contain block" />
                   
@@ -218,11 +225,22 @@ export default function ZeroShotCountingApp() {
               </ReactCrop>
             </div>
 
-            {!resultData && (
-              <button onClick={handleCountObjects} disabled={isCounting || !crop || !crop.width} className={`mt-2 px-10 py-4 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(236,72,153,0.3)] transition-all flex items-center gap-3 ${(!crop || !crop.width) ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:scale-105 border border-pink-500/50'}`}>
-                {isCounting ? <><Loader2 className="w-6 h-6 animate-spin" /> Đang chạy AI xử lý...</> : <><Target className="w-6 h-6" /> Đếm Vật Thể</>}
-              </button>
-            )}
+            {/* NÚT BẤM KÍCH HOẠT AI (Luôn hiện để đếm lại) */}
+            <button 
+              onClick={handleCountObjects} 
+              disabled={isCounting || !crop || !crop.width} 
+              className={`mt-4 px-10 py-4 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(236,72,153,0.3)] transition-all flex items-center gap-3 
+                ${(!crop || !crop.width) ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' 
+                : 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:scale-105 border border-pink-500/50'}`}
+            >
+              {isCounting ? (
+                <><Loader2 className="w-6 h-6 animate-spin" /> Đang chạy AI xử lý...</>
+              ) : resultData ? (
+                <><Target className="w-6 h-6" /> Áp Dụng Ngưỡng Mới</>
+              ) : (
+                <><Target className="w-6 h-6" /> Đếm Vật Thể</>
+              )}
+            </button>
           </div>
         )}
       </main>
