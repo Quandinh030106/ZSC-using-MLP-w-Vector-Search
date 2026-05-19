@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "ZSC by MLP",
+  title: "ZSC by PCA",
   description: "Đồ án cuối kỳ môn Machine Learning của Đinh Pham Anh Quân",
 };
 
