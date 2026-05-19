@@ -1,46 +1,75 @@
-#  Zero-Shot Object Counting (ZSC) using Classical CV & Siamese MLP
+# Zero-Shot Object Counting (ZSC) using Classical CV, PCA Whitening & FAISS
 
-Đồ án môn học Machine Learning - Giải quyết bài toán Đếm vật thể Zero-shot (ZSC) **không sử dụng mạng Tích chập (CNN) hay Transformer (ViT)**. 
+Đồ án Machine Learning giải quyết bài toán đếm vật thể zero-shot **không sử dụng CNN, Transformer, DNN hay neural network**.
 
-Dự án bao gồm **Feature Extracting của Classical CV**, **Neural Network kết hơp với Siamese Residual MLP** và **Vector Search bằng FAISS**
+Dự án dùng đặc trưng thị giác cổ điển, giảm chiều bằng PCA/Whitening, tìm kiếm vector bằng FAISS và lọc hộp bằng NMS.
 
-##  Các đặc điểm của dự án
-### 1. Multi-modal Feature Extraction (Trích xuất đặc trưng đa phương thức)
-Thay vì dùng điểm ảnh thô (pixel), hệ thống trích xuất vector 1812 chiều từ mỗi ô ảnh (được chuẩn hóa về 64x64):
-*   **HOG (Histogram of Oriented Gradients) - 1764 chiều:** Nắm bắt hình dáng học và đường viền (Shape & Edges) của vật thể trên ảnh xám.
-*   **HSV Color Histogram - 48 chiều:** Chuyển đổi sang không gian màu HSV để bóc tách yếu tố ánh sáng, chia làm 16 bins cho mỗi kênh.
+## Pipeline
 
-### 2. Multi-scale Sliding Window (Cửa sổ trượt đa kích thước)
-*   **Vấn đề:** Các vật thể trong cùng một bức ảnh có kích thước to nhỏ khác nhau do hiệu ứng xa gần. Cửa sổ trượt cố định sẽ cắt lẹm hoặc chứa quá nhiều nền.
-*   **Giải pháp:** Tự động lấy tỷ lệ từ khung vật thể mẫu (Exemplar Box), sau đó quét qua ảnh bằng **nhiều tỷ lệ phóng to/thu nhỏ khác nhau** (0.8x, 1.0x, 1.2x). Điều này giúp model thích ứng và không bỏ sót vật thể xa-gần.
-
-### 3. Deep Siamese Residual MLP (~11 Triệu tham số)
-*   Mạng nơ-ron thuần `Dense Layer` nhưng được thiết kế học sâu (Deep Learning) với kiến trúc Phễu: 1812 → 1536 → 768 → 256 → 128.
-*   **Skip Connection (Residual):** Bổ sung kết nối tắt $F(x) + x$ để tránh hiện tượng triệt tiêu đạo hàm khi mạng sâu.
-*   **LayerNorm & High Dropout:** Sử dụng `LayerNorm` (tối ưu cho vector 1D hơn BatchNorm) và `Dropout(0.5)` kết hợp `Weight Decay` để chống Overfitting.
-
-### 4. Hard Negative Mining with Laplacian Variance
-*   Hàm **Triplet Margin Loss** cần các bộ ba (Anchor, Positive, Negative) để học.
-*   Thay vì lấy vùng nền (Negative) ngẫu nhiên (dễ lấy trúng bầu trời trơn láng), hệ thống dùng thuật toán **Variance of Laplacian** để đo độ phức tạp gờ mép của hàng loạt vùng nền. Khu vực nào càng rắc rối, hệ thống càng ưu tiên bốc làm Negative để mô hình học cách phân biệt sự khác nhau.
-
-### 5. Vector Search bằng FAISS & NMS
-*   Lớp cuối cùng của MLP áp dụng **L2 Normalization**, ép mọi vector lên bề mặt hình cầu đơn vị.
-*   Đưa hàng chục ngàn vector của các ô cửa sổ trượt vào **FAISS**. Việc tính `Inner Product` trên FAISS tương đương với việc đo **Cosine Similarity**.
-*   Cuối cùng, áp dụng thuật toán **Non-Maximum Suppression (NMS)** dựa trên ngưỡng IoU để loại bỏ các hộp giới hạn (Bounding Boxes) chồng chéo.
-
-## Cấu trúc thư mục
 ```text
- ZSC-Classical-MLP
- ┣  src
- ┃ ┣  config.py
- ┃ ┣  feature_extractor.py
- ┃ ┣  dataset.py
- ┃ ┣  model.py
- ┃ ┣  train.py
- ┃ ┣  utils.py
- ┃ ┗  vector_search.py
- ┣  inference.py
- ┣  evaluate.py
- ┣  get_coords.py
- ┣  requirements.txt          
- ┗  README.md
+HOG/HSV/LBP features
+→ PCA/Whitening
+→ L2 normalization
+→ FAISS cosine search
+→ NMS
+→ Count
+```
+
+## Đặc Trưng
+
+Mỗi patch ảnh được resize về `64x64` và trích xuất vector `2068` chiều:
+
+* **HOG - 1764 chiều:** mô tả shape, edge và hướng gradient.
+* **HSV histogram - 48 chiều:** 16 bins cho mỗi kênh H/S/V.
+* **LBP - 256 chiều:** mô tả texture cục bộ bằng Local Binary Pattern.
+
+## PCA/Whitening
+
+`src/train.py` không huấn luyện neural network. File này chỉ fit PCA/Whitening trên feature exemplar của tập train, sau đó lưu:
+
+```text
+weights/pca_whitening_best.npz
+weights/pca_whitening_best_checkpoint.npz
+```
+
+PCA giúp giảm nhiễu và nén feature. Whitening giúp các chiều chính có thang đo cân bằng hơn trước khi dùng cosine similarity.
+
+## Inference & Evaluation
+
+* `inference.py`: dùng một ảnh và một `EXEMPLAR_BOX` để đếm thử.
+* `evaluate.py`: tự lấy exemplar boxes từ annotation FSC-147 và báo cáo MAE/RMSE trên `test` và `test_coco`.
+
+## Thứ Tự Chạy
+
+```powershell
+pip install -r requirements.txt
+python src/feature_extractor.py
+python src/train.py
+python inference.py
+python evaluate.py
+```
+
+Trên Kaggle, code tự tìm dataset trong `/kaggle/input` và lưu output sinh ra vào `/kaggle/working`.
+
+## Chạy Trên Kaggle
+
+Sau khi upload dataset FSC147 và zip code này vào Kaggle, chạy trong một notebook cell:
+
+```bash
+CODE_DIR=$(find /kaggle/input -type f -name kaggle_install_and_run.sh -printf '%h\n' | head -n 1)
+bash "$CODE_DIR/kaggle_install_and_run.sh"
+```
+
+Script mặc định dùng mode `auto`:
+
+* Nếu chưa có model PCA, script tự chạy `feature_extractor.py`, rồi `train.py`.
+* Nếu chưa có `count_calibration.npz`, script chạy `calibrate.py` trên validation để chọn threshold/NMS/count scale tốt hơn.
+* Cuối cùng script chạy `evaluate.py`.
+
+Nếu chỉ muốn evaluate và bắt lỗi ngay khi thiếu weight:
+
+```bash
+CODE_DIR=$(find /kaggle/input -type f -name kaggle_run.py -printf '%h\n' | head -n 1)
+cd "$CODE_DIR"
+python -B kaggle_run.py --mode evaluate
+```

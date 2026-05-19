@@ -1,9 +1,12 @@
 import cv2
 import os
+from src.config import CFG
+from src.utils import configure_utf8_output
 
-IMAGE_PATH = 'data/images_384_VarV2/685.jpg' 
+IMAGE_PATH = os.path.join(CFG.IMAGE_DIR, '685.jpg')
 
 def main():
+    configure_utf8_output()
     if not os.path.exists(IMAGE_PATH):
         print("Không tìm thấy ảnh!")
         return

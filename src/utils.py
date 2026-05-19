@@ -1,5 +1,15 @@
 import numpy as np
 
+def configure_utf8_output():
+    import sys
+
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+
 def non_max_suppression(boxes, scores, iou_threshold=0.3):
     """
     Thuật toán Non-Maximum Suppression (NMS)
@@ -29,7 +39,7 @@ def non_max_suppression(boxes, scores, iou_threshold=0.3):
 
     while order.size > 0:
         i = order[0] # Lấy hộp có điểm cao nhất
-        keep.append(i)
+        keep.append(int(i))
 
         # Tính toán tọa độ phần giao nhau của hộp i với các hộp còn lại
         xx1 = np.maximum(x1[i], x1[order[1:]])
