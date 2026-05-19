@@ -1,82 +1,70 @@
+import os
 import cv2
-import torch
-import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
 from src.config import CFG
-from src.model import SiameseResidualMLP
-from src.vector_search import FAISSSearchEngine
-from src.feature_extractor import compute_features
+from src.counting import (
+    count_from_candidates,
+    load_count_calibration,
+    build_detection_candidates,
+)
+from src.model import PCAWhiteningModel
+from src.utils import configure_utf8_output
 from src.utils import non_max_suppression
-from src.utils import sliding_window
 
-IMAGE_PATH = 'data/images_384_VarV2/685.jpg' 
+IMAGE_PATH = os.path.join(CFG.IMAGE_DIR, '685.jpg')
 EXEMPLAR_BOX = [345, 219, 391, 269]
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    model = SiameseResidualMLP(input_dim=CFG.FEATURE_DIM, latent_dim=CFG.LATENT_DIM).to(device)
-    model.load_state_dict(torch.load(CFG.BEST_MODEL_PATH, map_location=device))
-    model.eval()
+    configure_utf8_output()
+    model_path = CFG.resolve_best_model_path()
+    model = PCAWhiteningModel.load(model_path)
+    print(f"Loaded PCA/Whitening model: {model_path}")
+
+    calibration = load_count_calibration(CFG.resolve_count_calibration_path())
+    if calibration is not None:
+        print(
+            "Loaded count calibration: "
+            f"threshold={calibration['similarity_threshold']:.2f}, "
+            f"nms={calibration['nms_threshold']:.2f}, "
+            f"scale={calibration['scale']:.4f}, "
+            f"bias={calibration['bias']:.4f}"
+        )
 
     # ĐỌC ẢNH VÀ NÉN QUERY
     img = cv2.imread(IMAGE_PATH)
+    if img is None:
+        raise FileNotFoundError(f"Không tìm thấy hoặc không đọc được ảnh: {IMAGE_PATH}")
+
     img_draw = img.copy()
     xmin, ymin, xmax, ymax = EXEMPLAR_BOX
-    
-    query_feat = compute_features(img[ymin:ymax, xmin:xmax])
-    with torch.no_grad():
-        query_vector = model(torch.tensor(query_feat).unsqueeze(0).to(device)).cpu().numpy()
+    if xmin < 0 or ymin < 0 or xmax <= xmin or ymax <= ymin or xmax > img.shape[1] or ymax > img.shape[0]:
+        raise ValueError(f"EXEMPLAR_BOX không hợp lệ với kích thước ảnh: {EXEMPLAR_BOX}")
 
-    # MULTI-SCALE SLIDING WINDOW
-    win_w, win_h = xmax - xmin, ymax - ymin
-    scales = [0.8, 1.0, 1.2]
-    
-    all_patches = []
-    all_boxes = []
-    
-    for scale in scales:
-        scaled_w = int(win_w * scale)
-        scaled_h = int(win_h * scale)
-        
-        # Bỏ qua nếu cửa sổ quá nhỏ hoặc tràn viền ảnh
-        if scaled_w < 10 or scaled_h < 10 or scaled_w > img.shape[1] or scaled_h > img.shape[0]:
-            continue
-            
-        step_size = max(4, min(scaled_w, scaled_h) // 4) 
-        patches, boxes = sliding_window(img, (scaled_w, scaled_h), step_size)
-        all_patches.extend(patches)
-        all_boxes.extend(boxes)
-    
-    print(f"   -> Đã cắt ra tổng cộng {len(all_patches)} ô ảnh.")
+    scores, all_boxes = build_detection_candidates(img, model, [EXEMPLAR_BOX])
+    print(f"   -> Đã tạo {len(scores)} candidate windows.")
+    if len(scores) == 0:
+        raise ValueError("Không tạo được candidate window nào từ EXEMPLAR_BOX hiện tại.")
 
-    # TRÍCH XUẤT VÀ NÉN VECTOR
-    db_feats = [compute_features(p) for p in tqdm(all_patches, desc="[1/3] Trích xuất HOG+HSV")]
-    db_tensor = torch.tensor(np.array(db_feats)).to(device)
-    
-    db_vectors = []
-    with torch.no_grad():
-        for i in tqdm(range(0, len(db_tensor), 512), desc="[2/3] Mạng MLP Nén Vector"):
-            db_vectors.append(model(db_tensor[i:i+512]).cpu().numpy())
-    db_vectors = np.vstack(db_vectors)
-
-    # TÌM KIẾM BẰNG FAISS(VECTOR SEARCH)
-    searcher = FAISSSearchEngine(dimension=CFG.LATENT_DIM, metric='cosine')
-    searcher.build_database(db_vectors)
-    scores, indices = searcher.search_exemplar(query_vector, top_k=len(db_vectors))
-
-    # LỌC NGƯỠNG & NMS
-    filtered_boxes = [all_boxes[idx] for score, idx in zip(scores, indices) if score > CFG.SIMILARITY_THRESHOLD]
-    filtered_scores = [score for score in scores if score > CFG.SIMILARITY_THRESHOLD]
+    threshold = calibration["similarity_threshold"] if calibration is not None else CFG.SIMILARITY_THRESHOLD
+    nms_threshold = calibration["nms_threshold"] if calibration is not None else CFG.NMS_THRESHOLD
+    raw_count = count_from_candidates(scores, all_boxes, threshold, nms_threshold)
 
     print("[3/3] Chạy NMS lọc nhiễu...")
-    keep = non_max_suppression(filtered_boxes, filtered_scores, iou_threshold=CFG.NMS_THRESHOLD)
+    candidate_pairs = [(float(score), idx) for idx, score in enumerate(scores) if float(score) > threshold]
+    if not candidate_pairs:
+        fallback_k = min(50, len(scores))
+        candidate_pairs = [(float(scores[idx]), idx) for idx in range(fallback_k)]
+    filtered_scores = [score for score, _ in candidate_pairs]
+    filtered_boxes = [all_boxes[idx] for _, idx in candidate_pairs]
+    keep = non_max_suppression(filtered_boxes, filtered_scores, iou_threshold=nms_threshold)
     
     # 7. KẾT QUẢ VÀ VẼ HÌNH
-    COUNT = len(keep)
+    if calibration is None:
+        COUNT = raw_count
+    else:
+        COUNT = int(max(0, round(calibration["scale"] * float(raw_count) + calibration["bias"])))
     print(f"\nTỔNG SỐ ĐẾM DỰ ĐOÁN: {COUNT}\n")
 
     for i in keep:
@@ -93,9 +81,6 @@ def main():
     plt.axis('off')
     plt.tight_layout()
     plt.show()
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
