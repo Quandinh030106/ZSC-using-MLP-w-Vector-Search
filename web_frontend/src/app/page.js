@@ -7,7 +7,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 
 export default function ZeroShotCountingApp() {
   // --- STATES GIAO DIỆN & THÔNG SỐ ---
-  const [cosineThreshold, setCosineThreshold] = useState(0.90);
+  const [cosineThreshold, setCosineThreshold] = useState(0.35);
   const [nmsThreshold, setNmsThreshold] = useState(0.20);
   
   // --- STATES XỬ LÝ ẢNH & VẼ BOX ---
@@ -130,7 +130,7 @@ export default function ZeroShotCountingApp() {
               <label className="text-sm font-medium text-slate-300">Ngưỡng Cosine</label>
               <span className="text-lg font-bold text-pink-400">{cosineThreshold.toFixed(2)}</span>
             </div>
-            <input type="range" min="0.70" max="0.99" step="0.01" value={cosineThreshold} onChange={(e) => setCosineThreshold(parseFloat(e.target.value))} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500"/>
+            <input type="range" min="0.10" max="0.99" step="0.01" value={cosineThreshold} onChange={(e) => setCosineThreshold(parseFloat(e.target.value))} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500"/>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -158,7 +158,7 @@ export default function ZeroShotCountingApp() {
           </div>
           <ul className="text-sm text-slate-400 space-y-2 mb-3">
             <li>Feature: HOG+HSV+LBP (2068-dim)</li>
-            <li>Model: Siamese MLP (11M params)</li>
+            <li>Model: PCA Whitening (128-dim)</li>
             <li>Search: FAISS (IndexFlatIP)</li>
           </ul>
           <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center"><p className="text-xs italic text-amber-400">* KHÔNG dùng CNN/Transformer *</p></div>
