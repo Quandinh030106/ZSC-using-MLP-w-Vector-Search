@@ -1,4 +1,4 @@
-# Zero-Shot Object Counting (ZSC) using Classical CV, PCA Whitening & FAISS
+# Few-Shot Object Counting (ZSC) using Classical CV, PCA Whitening & FAISS
 
 Đồ án Machine Learning giải quyết bài toán đếm vật thể zero-shot **không sử dụng CNN, Transformer, DNN hay neural network**.
 
