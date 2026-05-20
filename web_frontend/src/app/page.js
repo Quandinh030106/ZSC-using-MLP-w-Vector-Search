@@ -7,8 +7,8 @@ import 'react-image-crop/dist/ReactCrop.css';
 
 export default function ZeroShotCountingApp() {
   // --- STATES GIAO DIỆN & THÔNG SỐ ---
-  const [cosineThreshold, setCosineThreshold] = useState(0.35); // Ngưỡng chuẩn cho PCA
-  const [nmsThreshold, setNmsThreshold] = useState(0.30); // Tránh đè lên nhau quá nhiều
+  const [cosineThreshold, setCosineThreshold] = useState(0.85);
+  const [nmsThreshold, setNmsThreshold] = useState(0.25);
   
   // --- STATES XỬ LÝ ẢNH & VẼ BOX ---
   const [isDragging, setIsDragging] = useState(false);
