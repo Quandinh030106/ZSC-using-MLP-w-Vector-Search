@@ -199,7 +199,6 @@ export default function ZeroShotCountingApp() {
             <h3 className="font-semibold text-slate-100">Few-Shot AI Engine</h3>
           </div>
           <ul className="text-sm text-slate-400 space-y-2 mb-3">
-            <li>• Auto-Masking (Otsu)</li>
             <li>• HOG+HSV+LBP (2068-dim)</li>
             <li>• PCA Whitening (128-dim)</li>
             <li>• Few-Shot Mean Pooling</li>
